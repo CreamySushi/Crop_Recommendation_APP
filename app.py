@@ -44,7 +44,7 @@ def predict_crop():
         return jsonify({
             'success': True,
             'recommended_crop': recommended_crop,
-            'sensor_data_received': {'N': n, 'P': p, 'K': k, 'pH': ph}
+            'sensor_data_received': {'N': n, 'P': p, 'K': k, 'pH': ph, 'Moisture': moisture}
         }), 200
 
     except Exception as e:
