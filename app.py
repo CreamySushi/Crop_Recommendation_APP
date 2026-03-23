@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 
 try:
-    model = joblib.load('models/latest_xgb.pkl')
+    model = joblib.load('models/cr_xgbrfclassifier_model.pkl')
     encoder = joblib.load('models/label_encoder.pkl') 
     print("Model and Encoder loaded successfully.")
 except Exception as e:
