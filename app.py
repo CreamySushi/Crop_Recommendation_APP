@@ -24,7 +24,8 @@ FIREBASE_KEY_PATH = '/etc/secrets/crop-recommendation-qarg-firebase-adminsdk.jso
 # ------------------ INITIALIZATION ---------------------------
 try:
     if os.path.exists(FIREBASE_KEY_PATH):
-        cred = credentials.Certificate(FIREBASE_KEY_PATH)firebase_admin.initialize_app(cred)
+        cred = credentials.Certificate(FIREBASE_KEY_PATH)
+        firebase_admin.initialize_app(cred)
         db = firestore.client()
         print('Firebase connected')
     else:
@@ -97,7 +98,13 @@ def predict_crop():
         return jsonify({
             'success': True,
             'recommended_crop': recommended_crop,
-            'sensor_data_received': sensor_data
+            'sensor_data_received': {
+                'N': n,
+                'P': p,
+                'K': k,
+                'pH': ph,
+                'Moisture': moisture
+            }
         }), 200
 
     except Exception as e:
