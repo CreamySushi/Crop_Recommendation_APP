@@ -19,7 +19,7 @@ ENCODER_PATH = os.path.join(BASE_DIR, 'models', 'label_encoder.pkl')
 
 PI_SECRET_PASSWORD = os.environ.get('PI_SECRET_TOKEN', 'default_fallback_value')
 # Account Key (Secret File)
-FIREBASE_KEY_PATH = '/etc/secrets/serviceAccountKey.json'
+FIREBASE_KEY_PATH = '/etc/secrets/crop-recommendation-qarg-firebase-adminsdk.json'
 
 # ------------------ INITIALIZATION ---------------------------
 try:
