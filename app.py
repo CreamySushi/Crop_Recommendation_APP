@@ -13,30 +13,33 @@ CORS(app)
 
 # ------------------------ FILE CONFIGURATION ------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, 'models' 'cr_xgbrfclassifier.model.pkl')
+MODEL_PATH = os.path.join(BASE_DIR, 'models', 'cr_xgbrfclassifier.model.pkl')
 ENCODER_PATH = os.path.join(BASE_DIR, 'models', 'label_encoder.pkl')
 
 
-PI_SECRET_PASSWORD = os.environ.get('PI_SECRET_TOKEN', 'default_fallback_value')
+PI_SECRET_PASSWORD = os.environ.get('PI_SECRET_TOKEN', 'Crop-recommendation-raspi-2026')
 # Account Key (Secret File)
 FIREBASE_KEY_PATH = '/etc/secrets/crop-recommendation-qarg-firebase-adminsdk.json'
 
 # ------------------ INITIALIZATION ---------------------------
 try:
-    if os.path.exists(FIREBASE_KEY_PATH):
-        cred = credentials.Certificate(FIREBASE_KEY_PATH)
-        firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        print('Firebase connected')
+    if not firebase_admin._apps:
+        if os.path.exists(FIREBASE_KEY_PATH):
+            cred = credentials.Certificate(FIREBASE_KEY_PATH)
+            firebase_admin.initialize_app(cred)
+            db = firestore.client()
+            print('Firebase connected')
+        else:
+            print('Firbase File Missing')
     else:
-        print('Firbase File Missing')
+        db = firestore.client()
 except Exception as e:
     print(f"Setup Failed: {e}")
     db = None
     
 try:
-    model = joblib.load('models/cr_xgbrfclassifier_model.pkl')
-    encoder = joblib.load('models/label_encoder.pkl') 
+    model = joblib.load(MODEL_PATH)
+    encoder = joblib.load(ENCODER_PATH) 
     print("Model and Encoder loaded successfully.")
 except Exception as e:
     print(f" Error loading model: {e}")
