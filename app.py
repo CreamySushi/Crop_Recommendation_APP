@@ -26,7 +26,7 @@ try:
         if os.path.exists(FIREBASE_KEY_PATH):
             cred = credentials.Certificate(FIREBASE_KEY_PATH)
             firebase_admin.initialize_app(cred, {
-                'projectId': 'crop-recommendation-qarg', 
+                'projectId': 'qacg-crop-recommendation', 
             })
             db = firestore.client()
             print('Firebase connected')
