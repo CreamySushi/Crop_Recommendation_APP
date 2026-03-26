@@ -16,21 +16,20 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, 'models', 'cr_xgbrfclassifier_model.pkl')
 ENCODER_PATH = os.path.join(BASE_DIR, 'models', 'label_encoder.pkl')
 
-
-PI_SECRET_PASSWORD = os.environ.get('PI_SECRET_TOKEN', 'Crop-recommendation-raspi-2026')
 # Account Key (Secret File)
-FIREBASE_KEY_PATH = '/etc/secrets/crop-recommendation-qarg-firebase-adminsdk.json'
+PI_SECRET_PASSWORD = os.environ.get('PI_SECRET_TOKEN', 'Crop-recommendation-raspi-2026')
+FIREBASE_KEY_PATH = '/etc/secrets/crop-recommendation-qarg-firebase-adminsdk.json' 
 
 # ------------------ INITIALIZATION ---------------------------
 try:
     if not firebase_admin._apps:
         if os.path.exists(FIREBASE_KEY_PATH):
             cred = credentials.Certificate(FIREBASE_KEY_PATH)
-            firebase_admin.initialize_app(cred)
+            firebase_admin.initialize_app(cred, {
+                'projectId': 'crop-recommendation-qarg', 
+            })
             db = firestore.client()
             print('Firebase connected')
-        else:
-            print('Firbase File Missing')
     else:
         db = firestore.client()
 except Exception as e:
