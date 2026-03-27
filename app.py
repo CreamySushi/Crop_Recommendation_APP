@@ -6,6 +6,7 @@ import joblib
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
+import datetime
 
 app = Flask(__name__)
 CORS(app)
@@ -61,11 +62,12 @@ def collect_sensor_data():
             'P': data.get('P'),
             'K': data.get('K'),
             'pH': data.get('pH'),
-            'Moisture': data.get('Moisture')
+            'Moisture': data.get('Moisture'),
         }
-        db.collection('sensor_readings').document('latest').set(sensor_data)
+        sensor_data['timestamp'] = firestore.SERVER_TIMESTAMP
+        db.collection('sensor_readings').add(sensor_data)
         return jsonify({'success': True, 'message': 'Data secured in Firestore'}), 200
-
+    
     except Exception as e:
          return jsonify({'success': False, 'error': str(e)}), 500
         
