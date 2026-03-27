@@ -2,6 +2,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
+import hmac
 import joblib
 import pandas as pd
 import firebase_admin
@@ -50,23 +51,56 @@ except Exception as e:
 def collect_sensor_data():
     try:
         data = request.get_json()
+        if not data or not isinstance(data, dict):
+            return jsonify({'error': 'Invalid JSON format'}), 400
         
-        if data.get('token') != PI_SECRET_PASSWORD:
+
+        client_token = str(data.get('token', ''))
+        if not hmac.compare_digest(client_token, PI_SECRET_PASSWORD):
             return jsonify({'error': 'Access Denied'}), 401
             
         if db is None:
             return jsonify({'error': 'Firebase server connection failed'}), 500
         
+        try:
+            val_n = float(data.get('N'))
+            val_p = float(data.get('P'))
+            val_k = float(data.get('K'))
+            val_ph = float(data.get('pH'))
+            val_moisture = float(data.get('Moisture'))
+   
+            if not (0 <= val_ph <= 14): raise ValueError("pH out of bounds")
+            if not (0 <= val_moisture <= 100): raise ValueError("Moisture out of bounds")
+            if val_n < 0 or val_p < 0 or val_k < 0: raise ValueError("Macros cannot be negative")
+            
+        except (TypeError, ValueError) as e:
+            return jsonify({'error': f'Invalid input data: {str(e)}'}), 400
+
         sensor_data = {
-            'N': data.get('N'),
-            'P': data.get('P'),
-            'K': data.get('K'),
-            'pH': data.get('pH'),
-            'Moisture': data.get('Moisture'),
+            'N': val_n,
+            'P': val_p,
+            'K': val_k,
+            'pH': val_ph,
+            'moisture': val_moisture,
+            'timestamp': firestore.SERVER_TIMESTAMP
         }
-        sensor_data['timestamp'] = firestore.SERVER_TIMESTAMP
+        
+        try:
+             features = pd.DataFrame([[sensor_data['N'], sensor_data['P'], sensor_data['K'], sensor_data['pH'], sensor_data['moisture']]], columns=['N', 'P', 'K', 'pH', 'Moisture'])
+             prediction_num = model.predict(features.values)[0]
+             recommended_crop = encoder.inverse_transform([prediction_num])[0]
+             sensor_data['cropLabel'] = recommended_crop
+        except Exception as pred_e:
+             print(f"Prediction failed during sensor update: {pred_e}")
+             sensor_data['cropLabel'] = 'Unknown'
+
         db.collection('sensor_readings').add(sensor_data)
-        return jsonify({'success': True, 'message': 'Data secured in Firestore'}), 200
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Data secured in Firestore',
+            'recommended_crop': sensor_data.get('cropLabel')
+        }), 200
     
     except Exception as e:
          return jsonify({'success': False, 'error': str(e)}), 500
@@ -80,18 +114,22 @@ def home():
 def predict_crop():
     try:
         data = request.get_json()
+        if not data or not isinstance(data, dict):
+             return jsonify({'error': 'Invalid JSON format'}), 400
         
-        n = data.get('N')
-        p = data.get('P')
-        k = data.get('K')
-        ph = data.get('pH')
-        moisture = data.get('Moisture')
-        
-        
-        if None in (n, p, k, ph, moisture):
-            return jsonify({'error': 'Missing sensor data. Please provide N, P, K, pH, and moisture.'}), 400
+        # Strict validation & type-casting
+        try:
+            n = float(data.get('N'))
+            p = float(data.get('P'))
+            k = float(data.get('K'))
+            ph = float(data.get('pH'))
+            moisture = float(data.get('Moisture'))
+            
+            if not (0 <= ph <= 14) or not (0 <= moisture <= 100) or n < 0 or p < 0 or k < 0:
+                raise ValueError("Values out of reasonable bounds")
+        except (TypeError, ValueError) as e:
+            return jsonify({'error': f'Missing or invalid sensor data: {str(e)}'}), 400
 
-        
         features = pd.DataFrame([[n, p, k, ph, moisture]], columns=['N', 'P', 'K', 'pH', 'Moisture'])
         
         prediction_num = model.predict(features.values)[0]
