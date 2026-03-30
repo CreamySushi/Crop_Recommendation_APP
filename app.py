@@ -7,7 +7,6 @@ import joblib
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
-import datetime
 
 app = Flask(__name__)
 CORS(app)
@@ -45,6 +44,42 @@ try:
 except Exception as e:
     print(f" Error loading model: {e}")
 
+
+def resolve_user_id_from_token(client_token, payload):
+    """
+    Resolve user id from immutable per-user apiToken in Firestore.
+    Temporary migration fallback:
+    - If legacy env token is used, require payload['userId'] and verify user exists.
+    """
+    if not client_token:
+        return None
+
+    # Primary path: per-user token lookup
+    try:
+        users = db.collection('users').where('apiToken', '==', client_token).limit(1).stream()
+        matched_user = next(users, None)
+        if matched_user is not None:
+            return matched_user.id
+    except Exception as e:
+        print(f"Token lookup failed: {e}")
+        return None
+
+    # Legacy fallback path: static token + explicit userId
+    if hmac.compare_digest(client_token, PI_SECRET_PASSWORD):
+        legacy_user_id = str(payload.get('userId', '')).strip()
+        if not legacy_user_id:
+            return None
+
+        try:
+            user_doc = db.collection('users').document(legacy_user_id).get()
+            if user_doc.exists:
+                return legacy_user_id
+        except Exception as e:
+            print(f"Legacy userId lookup failed: {e}")
+            return None
+
+    return None
+
 # ------------------------------- ROUTING----------------------------
 
 @app.route('/update_SensData', methods=['POST'])
@@ -53,21 +88,23 @@ def collect_sensor_data():
         data = request.get_json()
         if not data or not isinstance(data, dict):
             return jsonify({'error': 'Invalid JSON format'}), 400
-        
-
-        client_token = str(data.get('token', ''))
-        if not hmac.compare_digest(client_token, PI_SECRET_PASSWORD):
-            return jsonify({'error': 'Access Denied'}), 401
             
         if db is None:
             return jsonify({'error': 'Firebase server connection failed'}), 500
+
+        client_token = str(data.get('token', '')).strip()
+        owner_uid = resolve_user_id_from_token(client_token, data)
+        if not owner_uid:
+            if hmac.compare_digest(client_token, PI_SECRET_PASSWORD):
+                return jsonify({'error': 'Legacy token requires valid userId in payload'}), 401
+            return jsonify({'error': 'Access Denied'}), 401
         
         try:
             val_n = float(data.get('N'))
             val_p = float(data.get('P'))
             val_k = float(data.get('K'))
             val_ph = float(data.get('pH'))
-            val_moisture = float(data.get('Moisture'))
+            val_moisture = float(data.get('moisture', data.get('Moisture')))
    
             if not (0 <= val_ph <= 14): raise ValueError("pH out of bounds")
             if not (0 <= val_moisture <= 100): raise ValueError("Moisture out of bounds")
@@ -77,6 +114,7 @@ def collect_sensor_data():
             return jsonify({'error': f'Invalid input data: {str(e)}'}), 400
 
         sensor_data = {
+            'userId': owner_uid,
             'N': val_n,
             'P': val_p,
             'K': val_k,
@@ -99,6 +137,7 @@ def collect_sensor_data():
         return jsonify({
             'success': True, 
             'message': 'Data secured in Firestore',
+            'userId': owner_uid,
             'recommended_crop': sensor_data.get('cropLabel')
         }), 200
     
@@ -123,7 +162,7 @@ def predict_crop():
             p = float(data.get('P'))
             k = float(data.get('K'))
             ph = float(data.get('pH'))
-            moisture = float(data.get('Moisture'))
+            moisture = float(data.get('moisture', data.get('Moisture')))
             
             if not (0 <= ph <= 14) or not (0 <= moisture <= 100) or n < 0 or p < 0 or k < 0:
                 raise ValueError("Values out of reasonable bounds")
