@@ -22,7 +22,6 @@ PI_SECRET_PASSWORD = os.environ.get('PI_SECRET_TOKEN', 'Crop-recommendation-rasp
 FIREBASE_KEY_PATH = '/etc/secrets/qacg-crop-recommendation-firebase-adminsdk-fbsvc-c573940045.json' 
 
 # ------------------ INITIALIZATION ---------------------------
-db = None
 try:
     if not firebase_admin._apps:
         if os.path.exists(FIREBASE_KEY_PATH):
@@ -32,8 +31,6 @@ try:
             })
             db = firestore.client()
             print('Firebase connected')
-        else:
-            print(f"Firebase key not found at: {FIREBASE_KEY_PATH}")
     else:
         db = firestore.client()
 except Exception as e:
@@ -49,11 +46,6 @@ except Exception as e:
 
 
 def resolve_user_id_from_token(client_token, payload):
-    """
-    Resolve user id from immutable per-user apiToken in Firestore.
-    Temporary migration fallback:
-    - If legacy env token is used, require payload['userId'] and verify user exists.
-    """
     if not client_token:
         return None
 
@@ -151,11 +143,6 @@ def collect_sensor_data():
 def home():
     return "Crop Recommendation API is running!"
 
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({'ok': True}), 200
-
 # EndPoint 
 @app.route('/predict', methods=['POST'])
 def predict_crop():
@@ -200,5 +187,4 @@ def predict_crop():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', '5000'))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=True)
