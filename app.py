@@ -186,5 +186,45 @@ def predict_crop():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/crop_requirements/<crop_name>', methods=['GET'])
+def get_crop_requirements(crop_name):
+    # Standardize crop name to lowercase
+    crop = crop_name.lower().strip()
+    
+    # Realistic requirements for crops known to our LabelEncoder
+    CROP_REQUIREMENTS = {
+        'banana': {'n': [80, 120], 'p': [70, 95], 'k': [45, 55], 'ph': [5.5, 7.0], 'moisture': [75, 85]},
+        'calamansi': {'n': [90, 110], 'p': [40, 60], 'k': [40, 50], 'ph': [5.5, 6.5], 'moisture': [60, 80]},
+        'chili': {'n': [60, 80], 'p': [40, 55], 'k': [40, 60], 'ph': [5.5, 6.8], 'moisture': [60, 70]},
+        'coconut': {'n': [10, 40], 'p': [10, 30], 'k': [20, 50], 'ph': [5.2, 8.0], 'moisture': [60, 80]},
+        'coffee': {'n': [80, 120], 'p': [15, 40], 'k': [25, 35], 'ph': [5.5, 7.0], 'moisture': [50, 70]},
+        'garlic': {'n': [60, 80], 'p': [40, 60], 'k': [40, 60], 'ph': [6.0, 7.5], 'moisture': [50, 70]},
+        'ginger': {'n': [60, 80], 'p': [30, 50], 'k': [30, 50], 'ph': [5.5, 6.5], 'moisture': [60, 80]},
+        'jute': {'n': [60, 100], 'p': [35, 60], 'k': [35, 45], 'ph': [6.0, 7.5], 'moisture': [70, 90]},
+        'kidneybeans': {'n': [20, 40], 'p': [50, 80], 'k': [15, 25], 'ph': [5.5, 6.0], 'moisture': [80, 90]},
+        'maize': {'n': [60, 100], 'p': [35, 60], 'k': [15, 25], 'ph': [5.5, 7.0], 'moisture': [60, 80]},
+        'mango': {'n': [0, 45], 'p': [15, 40], 'k': [25, 35], 'ph': [4.5, 6.5], 'moisture': [60, 80]},
+        'mungbean': {'n': [10, 30], 'p': [40, 60], 'k': [15, 25], 'ph': [6.0, 7.0], 'moisture': [80, 90]},
+        'muskmelon': {'n': [80, 120], 'p': [10, 30], 'k': [45, 55], 'ph': [6.0, 6.8], 'moisture': [80, 90]},
+        'okra': {'n': [60, 80], 'p': [40, 60], 'k': [40, 60], 'ph': [6.0, 7.5], 'moisture': [60, 80]},
+        'onion': {'n': [60, 80], 'p': [40, 60], 'k': [40, 60], 'ph': [6.0, 7.5], 'moisture': [50, 70]},
+        'orange': {'n': [0, 40], 'p': [5, 30], 'k': [5, 20], 'ph': [6.0, 7.5], 'moisture': [80, 90]},
+        'papaya': {'n': [30, 70], 'p': [40, 70], 'k': [40, 60], 'ph': [6.0, 7.0], 'moisture': [80, 90]},
+        'pigeonpeas': {'n': [10, 40], 'p': [50, 80], 'k': [15, 25], 'ph': [5.5, 7.0], 'moisture': [80, 90]},
+        'pomegranate': {'n': [0, 40], 'p': [5, 30], 'k': [35, 45], 'ph': [5.5, 7.5], 'moisture': [60, 80]},
+        'rice': {'n': [60, 100], 'p': [35, 60], 'k': [35, 45], 'ph': [5.0, 7.5], 'moisture': [80, 100]},
+        'tomato': {'n': [40, 80], 'p': [20, 50], 'k': [20, 50], 'ph': [5.5, 7.0], 'moisture': [60, 80]},
+        'watermelon': {'n': [80, 120], 'p': [10, 30], 'k': [45, 55], 'ph': [6.0, 7.0], 'moisture': [80, 90]}
+    }
+    
+    DEFAULT_REQ = {'n': [40, 80], 'p': [20, 50], 'k': [20, 50], 'ph': [5.5, 7.0], 'moisture': [50, 80]}
+    
+    reqs = CROP_REQUIREMENTS.get(crop, DEFAULT_REQ)
+    return jsonify({
+        'success': True,
+        'crop': crop.capitalize(),
+        'requirements': reqs
+    }), 200
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
