@@ -45,6 +45,10 @@ except Exception as e:
     print(f" Error loading model: {e}")
 
 
+def has_zero_sensor_value(n, p, k, ph, moisture):
+    return any(value == 0 for value in [n, p, k, ph, moisture])
+
+
 def resolve_user_id_from_token(client_token, payload):
     if not client_token:
         return None
@@ -118,14 +122,20 @@ def collect_sensor_data():
             'timestamp': firestore.SERVER_TIMESTAMP
         }
         
-        try:
-             features = pd.DataFrame([[sensor_data['N'], sensor_data['P'], sensor_data['K'], sensor_data['pH'], sensor_data['moisture']]], columns=['N', 'P', 'K', 'pH', 'Moisture'])
-             prediction_num = model.predict(features.values)[0]
-             recommended_crop = encoder.inverse_transform([prediction_num])[0]
-             sensor_data['cropLabel'] = recommended_crop
-        except Exception as pred_e:
-             print(f"Prediction failed during sensor update: {pred_e}")
-             sensor_data['cropLabel'] = 'Unknown'
+        if has_zero_sensor_value(val_n, val_p, val_k, val_ph, val_moisture):
+            sensor_data['cropLabel'] = None
+            sensor_data['recommendationStatus'] = 'insufficient_data_zero_values'
+        else:
+            try:
+                features = pd.DataFrame([[sensor_data['N'], sensor_data['P'], sensor_data['K'], sensor_data['pH'], sensor_data['moisture']]], columns=['N', 'P', 'K', 'pH', 'Moisture'])
+                prediction_num = model.predict(features.values)[0]
+                recommended_crop = encoder.inverse_transform([prediction_num])[0]
+                sensor_data['cropLabel'] = recommended_crop
+                sensor_data['recommendationStatus'] = 'ok'
+            except Exception as pred_e:
+                print(f"Prediction failed during sensor update: {pred_e}")
+                sensor_data['cropLabel'] = 'Unknown'
+                sensor_data['recommendationStatus'] = 'prediction_failed'
 
         db.collection('sensor_readings').add(sensor_data)
         
@@ -133,7 +143,8 @@ def collect_sensor_data():
             'success': True, 
             'message': 'Data secured in Firestore',
             'userId': owner_uid,
-            'recommended_crop': sensor_data.get('cropLabel')
+            'recommended_crop': sensor_data.get('cropLabel'),
+            'recommendation_status': sensor_data.get('recommendationStatus')
         }), 200
     
     except Exception as e:
@@ -163,6 +174,20 @@ def predict_crop():
                 raise ValueError("Values out of reasonable bounds")
         except (TypeError, ValueError) as e:
             return jsonify({'error': f'Missing or invalid sensor data: {str(e)}'}), 400
+
+        if has_zero_sensor_value(n, p, k, ph, moisture):
+            return jsonify({
+                'success': False,
+                'recommended_crop': None,
+                'error': 'Cannot recommend crop when any required factor is 0',
+                'sensor_data_received': {
+                    'N': n,
+                    'P': p,
+                    'K': k,
+                    'pH': ph,
+                    'Moisture': moisture
+                }
+            }), 400
 
         features = pd.DataFrame([[n, p, k, ph, moisture]], columns=['N', 'P', 'K', 'pH', 'Moisture'])
         
@@ -228,3 +253,4 @@ def get_crop_requirements(crop_name):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+    
