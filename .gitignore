@@ -1,0 +1,8 @@
+# Firebase Secret Key
+qacg-crop-recommendation-firebase-adminsdk-fbsvc-c573940045.json
+
+# Python cache
+__pycache__/
+
+# The generated dataset
+.csv
