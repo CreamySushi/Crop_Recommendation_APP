@@ -19,18 +19,50 @@ ENCODER_PATH = os.path.join(BASE_DIR, 'models', 'label_encoder.pkl')
 
 # Account Key (Secret File)
 PI_SECRET_PASSWORD = os.environ.get('PI_SECRET_TOKEN', 'Crop-recommendation-raspi-2026')
-FIREBASE_KEY_PATH = '/etc/secrets/qacg-crop-recommendation-firebase-adminsdk-fbsvc-c573940045.json' 
+#FIREBASE_KEY_PATH = '/etc/secrets/qacg-crop-recommendation-firebase-adminsdk-fbsvc-c573940045.json' 
 
 # ------------------ INITIALIZATION ---------------------------
+# ------------------ Render Settings ------------------------
+# try:
+#     if not firebase_admin._apps:
+#         if os.path.exists(FIREBASE_KEY_PATH):
+#             cred = credentials.Certificate(FIREBASE_KEY_PATH)
+#             firebase_admin.initialize_app(cred, {
+#                 'projectId': 'qacg-crop-recommendation', 
+#             })
+#             db = firestore.client()
+#             print('Firebase connected')
+#     else:
+#         db = firestore.client()
+# except Exception as e:
+#     print(f"Setup Failed: {e}")
+#     db = None
+    
+# try:
+#     model = joblib.load(MODEL_PATH)
+#     encoder = joblib.load(ENCODER_PATH) 
+#     print("Model and Encoder loaded successfully.")
+# except Exception as e:
+#     print(f" Error loading model: {e}")
+
+# ------------------ Railway Settings ------------------------
 try:
     if not firebase_admin._apps:
-        if os.path.exists(FIREBASE_KEY_PATH):
-            cred = credentials.Certificate(FIREBASE_KEY_PATH)
+        # METHOD: Get JSON content directly from Variable string
+        firebase_json = os.environ.get('FIREBASE_CONFIG')
+        
+        if firebase_json:
+            # Parse the string into a dictionary
+            cred_dict = json.loads(firebase_json)
+            cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred, {
                 'projectId': 'qacg-crop-recommendation', 
             })
             db = firestore.client()
-            print('Firebase connected')
+            print('Firebase connected via Environment Variable')
+        else:
+            print("CRITICAL: FIREBASE_CONFIG variable missing. Database disabled.")
+            db = None
     else:
         db = firestore.client()
 except Exception as e:
@@ -38,12 +70,15 @@ except Exception as e:
     db = None
     
 try:
-    model = joblib.load(MODEL_PATH)
-    encoder = joblib.load(ENCODER_PATH) 
-    print("Model and Encoder loaded successfully.")
+    # Ensure the files exist before loading to avoid crash
+    if os.path.exists(MODEL_PATH) and os.path.exists(ENCODER_PATH):
+        model = joblib.load(MODEL_PATH)
+        encoder = joblib.load(ENCODER_PATH) 
+        print("Model and Encoder loaded successfully.")
+    else:
+        print(f"Error: Model files not found at {MODEL_PATH}")
 except Exception as e:
     print(f" Error loading model: {e}")
-
 
 def has_zero_sensor_value(n, p, k, ph, moisture):
     return any(value == 0 for value in [n, p, k, ph, moisture])
