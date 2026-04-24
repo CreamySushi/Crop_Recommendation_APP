@@ -6,6 +6,7 @@ import hmac
 import json
 import joblib
 import pandas as pd
+import xgboost as xgb
 import firebase_admin
 from firebase_admin import credentials, firestore
 
@@ -15,7 +16,8 @@ CORS(app)
 
 # ------------------------ FILE CONFIGURATION ------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, 'models', 'crop_recommendation_model.pkl')
+MODEL_PATH = os.path.join(BASE_DIR, 'models', 'crop_recommendation_xgbrf_model.json')
+LEGACY_MODEL_PATH = os.path.join(BASE_DIR, 'models', 'crop_recommendation_xgbrf_model.pkl')
 ENCODER_PATH = os.path.join(BASE_DIR, 'models', 'label_encoder.pkl')
 
 # Account Key (Secret File)
@@ -49,6 +51,18 @@ db = None
 model = None
 encoder = None
 
+
+def load_crop_model():
+    if os.path.exists(MODEL_PATH):
+        loaded_model = xgb.XGBRFClassifier()
+        loaded_model.load_model(MODEL_PATH)
+        return loaded_model
+
+    if os.path.exists(LEGACY_MODEL_PATH):
+        return joblib.load(LEGACY_MODEL_PATH)
+
+    return None
+
 try:
     if not firebase_admin._apps:
         if os.path.exists(FIREBASE_KEY_PATH):
@@ -67,7 +81,7 @@ except Exception as e:
     db = None
     
 try:
-    model = joblib.load(MODEL_PATH)
+    model = load_crop_model()
     encoder = joblib.load(ENCODER_PATH) 
     print("Model and Encoder loaded successfully.")
 except Exception as e:
