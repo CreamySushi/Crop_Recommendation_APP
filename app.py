@@ -4,6 +4,7 @@ from flask_cors import CORS
 import os
 import hmac
 import json
+from datetime import datetime, timezone
 import joblib
 import pandas as pd
 import xgboost as xgb
@@ -12,6 +13,8 @@ from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
 CORS(app)
+
+UNKNOWN_LABEL = 'Unknown'
 
 
 # ------------------------ FILE CONFIGURATION ------------------------
@@ -30,13 +33,7 @@ FIREBASE_KEY_PATH = '/etc/secrets/qacg-crop-recommendation-firebase-adminsdk-fbs
 # 1) model labels from encoder (auto-includes newly trained crops)
 # 2) JSON metadata file (optional)
 # 3) Firestore `crop_metadata` collection (optional)
-DEFAULT_REQ = {
-    'n': [40.0, 80.0],
-    'p': [20.0, 50.0],
-    'k': [20.0, 50.0],
-    'ph': [5.5, 7.0],
-    'moisture': [50.0, 80.0],
-}
+REQUIREMENT_KEYS = ['n', 'p', 'k', 'ph', 'moisture']
 
 CROP_METADATA_PATH = os.environ.get(
     'CROP_METADATA_PATH',
@@ -44,6 +41,8 @@ CROP_METADATA_PATH = os.environ.get(
 )
 CROP_METADATA_COLLECTION = os.environ.get('CROP_METADATA_COLLECTION', 'crop_metadata')
 CROP_DATASET = {}
+sensor_readings = 'sensor_readings'
+sensor_readings_init_doc_id = '__collection_init__'
 
 # ------------------ INITIALIZATION ---------------------------
 # ------------------ Render Settings ------------------------
@@ -111,16 +110,16 @@ def build_default_crop_entry(crop_name):
     return {
         'displayName': display_name,
         'category': 'General',
-        'requirements': copy_requirements(DEFAULT_REQ),
+        'requirements': None,
     }
 
 
 def coerce_requirements(raw_requirements):
     if not isinstance(raw_requirements, dict):
-        return copy_requirements(DEFAULT_REQ)
+        return None
 
     parsed = {}
-    for key in ['n', 'p', 'k', 'ph', 'moisture']:
+    for key in REQUIREMENT_KEYS:
         value = raw_requirements.get(key)
         if isinstance(value, list) and len(value) == 2:
             try:
@@ -132,9 +131,9 @@ def coerce_requirements(raw_requirements):
                 continue
             except (TypeError, ValueError):
                 pass
-        parsed[key] = [float(DEFAULT_REQ[key][0]), float(DEFAULT_REQ[key][1])]
+        return None
 
-    return parsed
+    return copy_requirements(parsed)
 
 
 def sanitize_dataset_entry(crop_key, raw_entry):
@@ -260,6 +259,27 @@ def ensure_crop_dataset_loaded():
         refresh_crop_dataset()
 
 
+def ensure_sensor_readings_collection():
+    if db is None:
+        return False
+
+    try:
+        docs = db.collection(sensor_readings).limit(1).stream()
+        if next(docs, None) is not None:
+            return True
+
+        # Firestore creates collections on first document write.
+        db.collection(sensor_readings).document(sensor_readings_init_doc_id).set({
+            'system': True,
+            'note': 'Auto-created collection marker',
+            'createdAt': datetime.now(timezone.utc).isoformat(),
+        })
+        return True
+    except Exception as e:
+        print(f"Failed ensuring {sensor_readings} collection: {e}")
+        return False
+
+
 def get_crop_display_name(crop_key):
     ensure_crop_dataset_loaded()
     normalized_key = normalize_crop_name(crop_key)
@@ -316,7 +336,9 @@ def score_value_against_range(value, min_value, max_value):
 def crop_compatibility_score(crop_key, n, p, k, ph, moisture):
     ensure_crop_dataset_loaded()
 
-    reqs = CROP_DATASET.get(crop_key, {}).get('requirements', DEFAULT_REQ)
+    reqs = CROP_DATASET.get(crop_key, {}).get('requirements')
+    if not reqs:
+        return 0.0
 
     total = (
         score_value_against_range(n, reqs['n'][0], reqs['n'][1])
@@ -411,10 +433,13 @@ def get_top_crops(n, p, k, ph, moisture, category=None, preferred_crop_key=None,
         pool = [
             key
             for key, value in CROP_DATASET.items()
-            if str(value.get('category', '')).strip().lower() == normalized_category
+            if (
+                str(value.get('category', '')).strip().lower() == normalized_category
+                and value.get('requirements')
+            )
         ]
     else:
-        pool = list(CROP_DATASET.keys())
+        pool = [key for key, value in CROP_DATASET.items() if value.get('requirements')]
 
     scored = [
         (key, crop_compatibility_score(key, n=n, p=p, k=k, ph=ph, moisture=moisture))
@@ -517,6 +542,9 @@ def collect_sensor_data():
         if model is None or encoder is None:
             return jsonify({'error': 'Model server not ready'}), 503
 
+        if not ensure_sensor_readings_collection():
+            return jsonify({'error': 'Unable to initialize sensor_readings collection'}), 500
+
         ensure_crop_dataset_loaded()
 
         client_token = str(data.get('token', '')).strip()
@@ -551,8 +579,8 @@ def collect_sensor_data():
         }
         
         if has_zero_sensor_value(val_n, val_p, val_k, val_ph, val_moisture):
-            sensor_data['cropLabel'] = None
-            sensor_data['recommendationCategory'] = None
+            sensor_data['cropLabel'] = UNKNOWN_LABEL
+            sensor_data['recommendationCategory'] = UNKNOWN_LABEL
             sensor_data['topCategoryCrops'] = []
             sensor_data['recommendationStatus'] = 'insufficient_data_zero_values'
         else:
@@ -576,12 +604,12 @@ def collect_sensor_data():
                 sensor_data['recommendationStatus'] = 'ok'
             except Exception as pred_e:
                 print(f"Prediction failed during sensor update: {pred_e}")
-                sensor_data['cropLabel'] = 'Unknown'
-                sensor_data['recommendationCategory'] = None
+                sensor_data['cropLabel'] = UNKNOWN_LABEL
+                sensor_data['recommendationCategory'] = UNKNOWN_LABEL
                 sensor_data['topCategoryCrops'] = []
                 sensor_data['recommendationStatus'] = 'prediction_failed'
 
-        db.collection('sensor_readings').add(sensor_data)
+        db.collection(sensor_readings).add(sensor_data)
         
         return jsonify({
             'success': True, 
@@ -628,11 +656,11 @@ def predict_crop():
 
         if has_zero_sensor_value(n, p, k, ph, moisture):
             return jsonify({
-                'success': False,
-                'recommended_crop': None,
-                'recommended_category': None,
+                'success': True,
+                'recommended_crop': UNKNOWN_LABEL,
+                'recommended_category': UNKNOWN_LABEL,
                 'top_3_crops': [],
-                'error': 'Cannot recommend crop when any required factor is 0',
+                'recommendation_status': 'insufficient_data_zero_values',
                 'sensor_data_received': {
                     'N': n,
                     'P': p,
@@ -640,7 +668,7 @@ def predict_crop():
                     'pH': ph,
                     'Moisture': moisture
                 }
-            }), 400
+            }), 200
 
         features = pd.DataFrame([[n, p, k, ph, moisture]], columns=['N', 'P', 'K', 'pH', 'Moisture'])
         
@@ -683,9 +711,16 @@ def get_crop_requirements(crop_name):
     crop = normalize_crop_name(crop_name)
 
     crop_item = CROP_DATASET.get(crop)
-    reqs = crop_item['requirements'] if crop_item else DEFAULT_REQ
-    category = crop_item['category'] if crop_item else 'General'
-    display_name = crop_item['displayName'] if crop_item else get_crop_display_name(crop_name)
+    if not crop_item or not crop_item.get('requirements'):
+        return jsonify({
+            'success': False,
+            'error': 'Crop requirements not found',
+            'available_crops': get_available_crop_display_names(),
+        }), 404
+
+    reqs = crop_item['requirements']
+    category = crop_item['category']
+    display_name = crop_item['displayName']
 
     return jsonify({
         'success': True,
