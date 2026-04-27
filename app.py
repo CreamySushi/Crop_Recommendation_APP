@@ -25,14 +25,10 @@ ENCODER_PATH = os.path.join(BASE_DIR, 'models', 'label_encoder.pkl')
 
 # Account Key (Secret File)
 PI_SECRET_PASSWORD = os.environ.get('PI_SECRET_TOKEN', 'Crop-recommendation-raspi-2026')
-FIREBASE_KEY_PATH = '/etc/secrets/qacg-crop-recommendation-firebase-adminsdk-fbsvc-c573940045.json' 
+FIREBASE_CONFIG = '/etc/secrets/qacg-crop-recommendation-firebase-adminsdk-fbsvc-c573940045.json' 
 
 # ------------------------ DATASET CONFIGURATION ------------------------
-# No more hardcoded crop list in code.
-# Sources are loaded in priority order:
-# 1) model labels from encoder (auto-includes newly trained crops)
-# 2) JSON metadata file (optional)
-# 3) Firestore `crop_metadata` collection (optional)
+
 REQUIREMENT_KEYS = ['n', 'p', 'k', 'ph', 'moisture']
 
 CROP_METADATA_PATH = os.environ.get(
