@@ -25,7 +25,7 @@ ENCODER_PATH = os.path.join(BASE_DIR, 'models', 'label_encoder.pkl')
 
 # Account Key (Secret File)
 PI_SECRET_PASSWORD = os.environ.get('PI_SECRET_TOKEN', 'Crop-recommendation-raspi-2026')
-FIREBASE_CONFIG = '/etc/secrets/qacg-crop-recommendation-firebase-adminsdk-fbsvc-c573940045.json' 
+FIREBASE_KEY_PATH = '/etc/secrets/qacg-crop-recommendation-firebase-adminsdk-fbsvc-c573940045.json' 
 
 # ------------------------ DATASET CONFIGURATION ------------------------
 
