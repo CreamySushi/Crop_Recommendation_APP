@@ -28,7 +28,11 @@ PI_SECRET_PASSWORD = os.environ.get('PI_SECRET_TOKEN', 'Crop-recommendation-rasp
 FIREBASE_KEY_PATH = '/etc/secrets/qacg-crop-recommendation-firebase-adminsdk-fbsvc-c573940045.json' 
 
 # ------------------------ DATASET CONFIGURATION ------------------------
-
+# No more hardcoded crop list in code.
+# Sources are loaded in priority order:
+# 1) model labels from encoder (auto-includes newly trained crops)
+# 2) JSON metadata file (optional)
+# 3) Firestore `crop_metadata` collection (optional)
 REQUIREMENT_KEYS = ['n', 'p', 'k', 'ph', 'moisture']
 
 CROP_METADATA_PATH = os.environ.get(
@@ -254,9 +258,10 @@ def ensure_crop_dataset_loaded():
     if not CROP_DATASET:
         refresh_crop_dataset()
 
-
+# ----------------- NEWLY UPDATED FUNCTION -----------------
 def ensure_sensor_readings_collection():
     if db is None:
+        print("❌ ERROR: Database connection (db) is None.")
         return False
 
     try:
@@ -265,15 +270,20 @@ def ensure_sensor_readings_collection():
             return True
 
         # Firestore creates collections on first document write.
+        print(f"⚠️ Collection '{sensor_readings}' not found. Creating it now...")
         db.collection(sensor_readings).document(sensor_readings_init_doc_id).set({
             'system': True,
             'note': 'Auto-created collection marker',
             'createdAt': datetime.now(timezone.utc).isoformat(),
         })
+        print(f"✅ Successfully created '{sensor_readings}' collection!")
         return True
+        
     except Exception as e:
-        print(f"Failed ensuring {sensor_readings} collection: {e}")
+        # This guarantees that if it fails, it won't just silently return False anymore
+        print(f"❌ CRITICAL ERROR in ensure_sensor_readings_collection: {e}")
         return False
+# ----------------------------------------------------------
 
 
 def get_crop_display_name(crop_key):
