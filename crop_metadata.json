@@ -1,0 +1,194 @@
+{
+  "rice": {
+    "displayName": "Rice",
+    "category": "Cereals"
+  },
+  "maize": {
+    "displayName": "Maize",
+    "category": "Cereals"
+  },
+  "wheat": {
+    "displayName": "Wheat",
+    "category": "Cereals"
+  },
+  "barley": {
+    "displayName": "Barley",
+    "category": "Cereals"
+  },
+  "sorghum": {
+    "displayName": "Sorghum",
+    "category": "Cereals"
+  },
+  "ragi": {
+    "displayName": "Ragi",
+    "category": "Cereals"
+  },
+
+  "chickpea": {
+    "displayName": "Chickpea",
+    "category": "Pulses"
+  },
+  "kidneybeans": {
+    "displayName": "Kidneybeans",
+    "category": "Pulses"
+  },
+  "pigeon peas": {
+    "displayName": "Pigeon Peas",
+    "category": "Pulses"
+  },
+  "moth beans": {
+    "displayName": "Moth Beans",
+    "category": "Pulses"
+  },
+  "mungbean": {
+    "displayName": "Mungbean",
+    "category": "Pulses"
+  },
+  "blackgram": {
+    "displayName": "Blackgram",
+    "category": "Pulses"
+  },
+  "lentil": {
+    "displayName": "Lentil",
+    "category": "Pulses"
+  },
+  "horsegram": {
+    "displayName": "Horsegram",
+    "category": "Pulses"
+  },
+  "soybean": {
+    "displayName": "Soybean",
+    "category": "Pulses"
+  },
+
+  "watermelon": {
+    "displayName": "Watermelon",
+    "category": "Cucurbits"
+  },
+  "muskmelon": {
+    "displayName": "Muskmelon",
+    "category": "Cucurbits"
+  },
+  "ampalaya": {
+    "displayName": "Ampalaya",
+    "category": "Cucurbits"
+  },
+  "upo": {
+    "displayName": "Upo",
+    "category": "Cucurbits"
+  },
+
+  "apple": {
+    "displayName": "Apple",
+    "category": "Fruits"
+  },
+  "orange": {
+    "displayName": "Orange",
+    "category": "Fruits"
+  },
+  "pomegranate": {
+    "displayName": "Pomegranate",
+    "category": "Fruits"
+  },
+  "mango": {
+    "displayName": "Mango",
+    "category": "Fruits"
+  },
+  "grapes": {
+    "displayName": "Grapes",
+    "category": "Fruits"
+  },
+  "calamansi": {
+    "displayName": "Calamansi",
+    "category": "Fruits"
+  },
+  "banana": {
+    "displayName": "Banana",
+    "category": "Fruits"
+  },
+  "papaya": {
+    "displayName": "Papaya",
+    "category": "Fruits"
+  },
+  "coconut": {
+    "displayName": "Coconut",
+    "category": "Fruits"
+  },
+
+  "tomato": {
+    "displayName": "Tomato",
+    "category": "Solanaceous"
+  },
+  "chili": {
+    "displayName": "Chili",
+    "category": "Solanaceous"
+  },
+  "potato": {
+    "displayName": "Potato",
+    "category": "Solanaceous"
+  },
+
+  "garlic": {
+    "displayName": "Garlic",
+    "category": "Lilies"
+  },
+  "onion": {
+    "displayName": "Onion",
+    "category": "Lilies"
+  },
+
+  "ginger": {
+    "displayName": "Ginger",
+    "category": "Spices"
+  },
+  "turmeric": {
+    "displayName": "Turmeric",
+    "category": "Spices"
+  },
+  "black pepper": {
+    "displayName": "Black Pepper",
+    "category": "Spices"
+  },
+  "coriander": {
+    "displayName": "Coriander",
+    "category": "Spices"
+  },
+
+  "cabbage": {
+    "displayName": "Cabbage",
+    "category": "Crucifers"
+  },
+
+  "cotton": {
+    "displayName": "Cotton",
+    "category": "Fibers"
+  },
+  "jute": {
+    "displayName": "Jute",
+    "category": "Fibers"
+  },
+
+  "sunflower": {
+    "displayName": "Sunflower",
+    "category": "Oilseeds"
+  },
+  "rapeseed": {
+    "displayName": "Rapeseed",
+    "category": "Oilseeds"
+  },
+
+  "sweet potato": {
+    "displayName": "Sweet Potato",
+    "category": "Roots"
+  },
+
+  "coffee": {
+    "displayName": "Coffee",
+    "category": "Beverages"
+  },
+
+  "okra": {
+    "displayName": "Okra",
+    "category": "Vegetables"
+  }
+}

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import joblib
 import pandas as pd
 import xgboost as xgb
+import numpy as np
 import firebase_admin
 from firebase_admin import credentials, firestore
 
@@ -22,6 +23,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, 'models', 'crop_recommendation_xgbrf_model.json')
 LEGACY_MODEL_PATH = os.path.join(BASE_DIR, 'models', 'crop_recommendation_xgbrf_model.pkl')
 ENCODER_PATH = os.path.join(BASE_DIR, 'models', 'label_encoder.pkl')
+PIPELINE_PATH = os.path.join(BASE_DIR, 'models', 'pipeline.pkl')
+SCALER_PATH = os.path.join(BASE_DIR, 'models', 'scaler.pkl')
 
 # Account Key (Secret File)
 PI_SECRET_PASSWORD = os.environ.get('PI_SECRET_TOKEN', 'Crop-recommendation-raspi-2026')
@@ -49,6 +52,23 @@ sensor_readings_init_doc_id = '__collection_init__'
 db = None
 model = None
 encoder = None
+pipeline = None
+scaler = None
+
+
+def encoder_has_crop_labels(loaded_encoder):
+    classes = list(getattr(loaded_encoder, 'classes_', []))
+    if not classes:
+        return False
+
+    # A valid crop encoder should contain text labels like "rice", "Upo", etc.
+    # If all classes are numeric (0..N), decoding will never produce crop names.
+    for item in classes:
+        label = str(item or '').strip()
+        if any(ch.isalpha() for ch in label):
+            return True
+
+    return False
 
 
 def load_crop_model():
@@ -80,15 +100,82 @@ except Exception as e:
     db = None
     
 try:
-    model = load_crop_model()
-    encoder = joblib.load(ENCODER_PATH) 
-    print("Model and Encoder loaded successfully.")
+    # Prefer a saved Pipeline (preprocessing + estimator)
+    if os.path.exists(PIPELINE_PATH):
+        pipeline = joblib.load(PIPELINE_PATH)
+        print(f"Loaded pipeline from: {PIPELINE_PATH}")
+    else:
+        model = load_crop_model()
+
+    # Optional scaler (if pipeline not used)
+    if pipeline is None and os.path.exists(SCALER_PATH):
+        try:
+            scaler = joblib.load(SCALER_PATH)
+            print(f"Loaded scaler from: {SCALER_PATH}")
+        except Exception as e:
+            print(f"Failed loading scaler: {e}")
+
+    # Load encoder if present
+    if os.path.exists(ENCODER_PATH):
+        encoder = joblib.load(ENCODER_PATH)
+        if not encoder_has_crop_labels(encoder):
+            raise ValueError(
+                'Invalid label_encoder.pkl: classes must be crop names, '
+                'not numeric IDs. Re-export encoder fitted on original crop strings.'
+            )
+    else:
+        encoder = None
+
+    print("Model/pipeline and Encoder initialization complete.")
 except Exception as e:
     print(f" Error loading model: {e}")
+    model = None
+    encoder = None
+    pipeline = None
+    scaler = None
 
 
 def has_zero_sensor_value(n, p, k, ph, moisture):
     return any(value == 0 for value in [n, p, k, ph, moisture])
+
+
+def predict_crop_from_features(n, p, k, ph, moisture):
+    """Return recommended crop name (string) given raw sensor features.
+    Supports either a full `pipeline` (preferred) or separate `scaler`+`model`+`encoder`.
+    """
+    try:
+        features = np.array([[n, p, k, ph, moisture]], dtype=float)
+
+        if pipeline is not None:
+            pred = pipeline.predict(features)
+            pred_val = pred[0]
+            # If pipeline returns numeric class ids, decode with encoder
+            if isinstance(pred_val, (np.integer, int)):
+                if encoder is not None:
+                    return encoder.inverse_transform([int(pred_val)])[0]
+                return str(int(pred_val))
+            return str(pred_val)
+
+        # No pipeline: apply optional scaler then model
+        X = features
+        if scaler is not None:
+            X = scaler.transform(X)
+
+        if model is None:
+            return None
+
+        pred = model.predict(X)[0]
+
+        if encoder is not None:
+            try:
+                return encoder.inverse_transform([pred])[0]
+            except Exception:
+                return str(pred)
+
+        return str(pred)
+    except Exception as e:
+        print(f"Prediction helper failed: {e}")
+        return None
 
 
 def normalize_crop_name(crop_name):
@@ -545,7 +632,7 @@ def collect_sensor_data():
         if db is None:
             return jsonify({'error': 'Firebase server connection failed'}), 500
 
-        if model is None or encoder is None:
+        if model is None:
             return jsonify({'error': 'Model server not ready'}), 503
 
         if not ensure_sensor_readings_collection():
@@ -591,9 +678,9 @@ def collect_sensor_data():
             sensor_data['recommendationStatus'] = 'insufficient_data_zero_values'
         else:
             try:
-                features = pd.DataFrame([[sensor_data['N'], sensor_data['P'], sensor_data['K'], sensor_data['pH'], sensor_data['moisture']]], columns=['N', 'P', 'K', 'pH', 'Moisture'])
-                prediction_num = model.predict(features.values)[0]
-                recommended_crop = encoder.inverse_transform([prediction_num])[0]
+                recommended_crop = predict_crop_from_features(
+                    sensor_data['N'], sensor_data['P'], sensor_data['K'], sensor_data['pH'], sensor_data['moisture']
+                )
 
                 summary = build_recommendation_summary(
                     n=sensor_data['N'],
@@ -638,7 +725,7 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict_crop():
     try:
-        if model is None or encoder is None:
+        if model is None:
             return jsonify({'error': 'Model server not ready'}), 503
 
         ensure_crop_dataset_loaded()
@@ -676,12 +763,7 @@ def predict_crop():
                 }
             }), 200
 
-        features = pd.DataFrame([[n, p, k, ph, moisture]], columns=['N', 'P', 'K', 'pH', 'Moisture'])
-        
-        prediction_num = model.predict(features.values)[0]
-        
-        # Convert to original string name
-        recommended_crop = encoder.inverse_transform([prediction_num])[0]
+        recommended_crop = predict_crop_from_features(n, p, k, ph, moisture)
 
         summary = build_recommendation_summary(
             n=n,
